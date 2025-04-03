@@ -21,6 +21,7 @@ use vm_memory::{mmap::NewBitmap, ByteValued, Error as MmapError, FileOffset, Mma
 
 #[cfg(feature = "xen")]
 use vm_memory::{GuestAddress, MmapRange, MmapXenFlags};
+use vmm_sys_util::fam::*;
 
 use super::{enum_value, Error, Result};
 use crate::VringConfigData;
@@ -223,6 +224,47 @@ bitflags! {
         const ALL_FLAGS = 0xc;
         /// All reserved bits.
         const RESERVED_BITS = !0xf;
+    }
+}
+
+#[repr(C)]
+#[derive(Default)]
+/// effess
+pub struct __IncompleteArrayField<T>(::std::marker::PhantomData<T>, [T; 0]);
+impl<T> __IncompleteArrayField<T> {
+    #[inline]
+    /// ciao
+    pub const fn new() -> Self {
+        __IncompleteArrayField(::std::marker::PhantomData, [])
+    }
+    #[inline]
+        /// ciao
+
+    pub fn as_ptr(&self) -> *const T {
+        self as *const _ as *const T
+    }
+    #[inline]
+        /// ciao
+
+    pub fn as_mut_ptr(&mut self) -> *mut T {
+        self as *mut _ as *mut T
+    }
+    #[inline]
+        /// ciao
+
+    pub unsafe fn as_slice(&self, len: usize) -> &[T] {
+        ::std::slice::from_raw_parts(self.as_ptr(), len)
+    }
+    #[inline]
+        /// ciao
+
+    pub unsafe fn as_mut_slice(&mut self, len: usize) -> &mut [T] {
+        ::std::slice::from_raw_parts_mut(self.as_mut_ptr(), len)
+    }
+}
+impl<T> ::std::fmt::Debug for __IncompleteArrayField<T> {
+    fn fmt(&self, fmt: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        fmt.write_str("__IncompleteArrayField")
     }
 }
 
@@ -992,7 +1034,7 @@ impl VhostUserMsgValidator for VhostUserTransferDeviceState {
 
 /// Inflight I/O descriptor state for split virtqueues
 #[repr(C, packed)]
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, PartialEq)]
 pub struct DescStateSplit {
     /// Indicate whether this descriptor (only head) is inflight or not.
     pub inflight: u8,
@@ -1012,8 +1054,8 @@ impl DescStateSplit {
 }
 
 /// Inflight I/O queue region for split virtqueues
-#[repr(C, packed)]
-pub struct QueueRegionSplit {
+#[repr(C)]
+pub struct QueueRegionSplit_tmp {
     /// Features flags of this region
     pub features: u64,
     /// Version of this region
@@ -1025,19 +1067,30 @@ pub struct QueueRegionSplit {
     /// Idx value of used ring
     pub used_idx: u16,
     /// Pointer to an array of DescStateSplit entries
-    pub desc: u64,
+    pub desc: __IncompleteArrayField<DescStateSplit>,
 }
 
-impl QueueRegionSplit {
+vmm_sys_util::generate_fam_struct_impl!(
+    QueueRegionSplit_tmp,
+    DescStateSplit,
+    desc,
+    u16,
+    desc_num,
+    u16::MAX as usize
+);
+
+type QueueRegionSplit = FamStructWrapper<QueueRegionSplit_tmp>;
+
+impl QueueRegionSplit_tmp {
     /// New instance of QueueRegionSplit struct
     pub fn new(features: u64, queue_size: u16) -> Self {
-        QueueRegionSplit {
+        QueueRegionSplit_tmp {
             features,
             version: 1,
             desc_num: queue_size,
             last_batch_head: 0,
             used_idx: 0,
-            desc: 0,
+            desc: __IncompleteArrayField::new(),
         }
     }
 }
